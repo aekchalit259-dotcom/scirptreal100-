@@ -1,0 +1,220 @@
+-- SCRIPT100% | Ultimate Obby Hub (Auto Obby, Fly, Speed, God Jump)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- สร้างหน้าต่าง GUI หลัก
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ObbyHubGui"
+ScreenGui.Parent = game.CoreGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 320, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 23, 42)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true -- รองรับการลากเลื่อนหน้าจอ
+MainFrame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 16)
+UICorner.Parent = MainFrame
+
+-- แถบหัวข้อ (Header)
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 45)
+Header.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+Header.BorderSizePixel = 0
+Header.Parent = MainFrame
+
+local HeaderCorner = Instance.new("UICorner")
+HeaderCorner.CornerRadius = UDim.new(0, 16)
+HeaderCorner.Parent = Header
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 1, 0)
+Title.Text = "⚡ OBBY MASTER HUB ⚡"
+Title.TextColor3 = Color3.fromRGB(251, 191, 36)
+Title.TextSize = 15
+Title.Font = Enum.Font.GothamBold
+Title.Parent = Header
+
+-- ปุ่มซ่อน/แสดง UI (Minimize Button)
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 40, 0, 40)
+ToggleBtn.Position = UDim2.new(0, 15, 0, 15)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(251, 191, 36)
+ToggleBtn.Text = "UI"
+ToggleBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.TextSize = 14
+ToggleBtn.Parent = ScreenGui
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 10)
+ToggleCorner.Parent = ToggleBtn
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- ฟังก์ชันสร้างปุ่มเมนูฟังก์ชันต่างๆ
+local function createButton(name, posY, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 280, 0, 45)
+    btn.Position = UDim2.new(0.5, -140, 0, posY)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 41, 59)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Text = name
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.Parent = MainFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = btn
+
+    local active = false
+    btn.MouseButton1Click:Connect(function()
+        active = not active
+        if active then
+            btn.BackgroundColor3 = Color3.fromRGB(16, 185, 129) -- สีเขียวเมื่อเปิด
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(30, 41, 59) -- สีเดิมเมื่อปิด
+        end
+        callback(active, btn)
+    end)
+end
+
+-- ตัวแปรควบคุมระบบต่างๆ
+local autoObbyEnabled = false
+local flyEnabled = false
+local speedEnabled = false
+local godJumpEnabled = false
+
+local flySpeed = 50
+local bg, bv
+
+-- 1. ระบบ Auto Obby (วาร์ปไปตามจุด Checkpoint หรือเสาธงถัดไปอัตโนมัติ)
+createButton("🤖 Auto Obby (Teleport to Next)", 60, function(active)
+    autoObbyEnabled = active
+    task.spawn(function()
+        while autoObbyEnabled do
+            task.wait(0.5)
+            pcall(function()
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    -- ค้นหาชิ้นส่วนที่เป็น Checkpoint หรือ End ในแมพ Obby
+                    for _, obj in ipairs(workspace:GetDescendants()) do
+                        if obj:IsA("Model") and (obj.Name:lower():find("checkpoint") or obj.Name:lower():find("stage") or obj.Name:lower():find("flag")) then
+                            local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                            if part and (part.Position - char.HumanoidRootPart.Position).Magnitude < 80 then
+                                -- วาร์ปไปข้างหน้าทีละสเตจ
+                                char.HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end)
+
+-- 2. ระบบ Fly (บินทะยานข้ามสิ่งกีดขวาง)
+createButton("✈️ Fly Mode (On/Off)", 115, function(active)
+    flyEnabled = active
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    
+    if flyEnabled then
+        if hrp then
+            bg = Instance.new("BodyGyro")
+            bg.P = 9e4
+            bg.maxTorque = Vector3.new(9e4, 9e4, 9e4)
+            bg.cframe = hrp.CFrame
+            bg.Parent = hrp
+
+            bv = Instance.new("BodyVelocity")
+            bv.velocity = Vector3.new(0, 0, 0)
+            bv.maxForce = Vector3.new(9e4, 9e4, 9e4)
+            bv.Parent = hrp
+
+            task.spawn(function()
+                while flyEnabled and char and hrp do
+                    local camera = workspace.CurrentCamera
+                    local moveDir = Vector3.new(0,0,0)
+                    
+                    if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+                    if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+                    
+                    bv.velocity = moveDir * flySpeed
+                    bg.cframe = camera.CFrame
+                    Task.wait()
+                end
+            end)
+        end
+    else
+        if bg then bg:Destroy() end
+        if bv then bv:Destroy() end
+    end
+end)
+
+-- 3. ระบบ Speed (วิ่งเร็วพิเศษ)
+createButton("⚡ Super Speed (WalkSpeed 32)", 170, function(active)
+    speedEnabled = active
+    task.spawn(function()
+        while speedEnabled do
+            task.wait(0.2)
+            pcall(function()
+                local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.WalkSpeed = 32
+                end
+            end)
+        end
+        pcall(function()
+            LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = 16
+        end)
+    end)
+end)
+
+-- 4. ระบบ God Jump (กระโดดสูงพิเศษ ข้ามด่านโหดๆ)
+createButton("🦘 God Jump (JumpPower 120)", 225, function(active)
+    godJumpEnabled = active
+    task.spawn(function()
+        while godJumpEnabled do
+            task.wait(0.2)
+            pcall(function()
+                local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.UseJumpPower = true
+                    hum.JumpPower = 120
+                end
+            end)
+        end
+        pcall(function()
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.JumpPower = 50 end
+        end)
+    end)
+end)
+
+-- เครดิตผู้พัฒนาในตัว UI
+local Credit = Instance.new("TextLabel")
+Credit.Size = UDim2.new(1, 0, 0, 30)
+Credit.Position = UDim2.new(0, 0, 1, -35)
+Credit.BackgroundTransparency = 1
+Credit.Text = "Script by AI Masterclass Hub"
+Credit.TextColor3 = Color3.fromRGB(148, 163, 184)
+Credit.TextSize = 11
+Credit.Font = Enum.Font.Gotham
+Credit.Parent = MainFrame
+
+print("Obby Master Hub Loaded Successfully!")
